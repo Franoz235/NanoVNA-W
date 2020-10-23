@@ -49,8 +49,8 @@ static void si5351_reset_cache(void){
 
 // Generator ready delays, values in x100 us
 #if 0
-  uint16_t timings[16]={  4,  3, 20, 1000, 5000,  0,  4, 25}; // For H  device timings
-//uint16_t timings[16]={  2,  2, 20, 1000, 5000,  0,  3, 25}; // For H4 device timings
+//uint16_t timings[16]={  4,  3, 20, 1000, 5000,  0,  4, 25}; // For H  device timings
+  uint16_t timings[16]={  2,  2, 20, 1000, 5000,  0,  3, 25}; // For H4 device timings
 void si5351_set_timing(int i, int v) {timings[i]=v;}
 #define DELAY_BAND_1_2           timings[0]   // Delay for bands
 #define DELAY_BAND_3_4           timings[1]   // Delay for bands
@@ -62,8 +62,8 @@ void si5351_set_timing(int i, int v) {timings[i]=v;}
 //#define DELAY_SWEEP_START      timings[7]   // defined in main.c delay at sweep start
 
 #else
-#define DELAY_BAND_1_2            4    // Delay for bands 1-2
-#define DELAY_BAND_3_4            3    // Delay for bands 3-4
+#define DELAY_BAND_1_2            2    // Delay for bands 1-2
+#define DELAY_BAND_3_4            2    // Delay for bands 3-4
 #define DELAY_BANDCHANGE         20    // Band changes need set additional delay after reset PLL
 // Delay after set new PLL values, and send reset
 #define DELAY_RESET_PLL_BEFORE 1000    // 1000 possibly not need it if align freq
@@ -387,13 +387,13 @@ band_strategy_t band_s[] = {
   {       10000U, SI5351_FIXED_PLL, { 8}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA,  0,  0,       1}, // 1
   {   100000000U, SI5351_FIXED_PLL, {32}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA,  0,  0,       1}, // 2
 
-  {   130000000U, SI5351_FIXED_MULT,{ 8}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA,  0,  0,       1}, // 3
-  {   180000000U, SI5351_FIXED_MULT,{ 6}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA,  0,  0,       1}, // 4
-  {            1, SI5351_FIXED_MULT,{ 4}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA,  0,  0,       1}, // 5
+  {   130000000U, SI5351_FIXED_MULT,{ 8}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA,  0,  0,       1}, // 3
+  {   180000000U, SI5351_FIXED_MULT,{ 6}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA,  0,  0,       1}, // 4
+  {            1, SI5351_FIXED_MULT,{ 4}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA,  0,  0,       1}, // 5
 
-  {   450000000U, SI5351_FIXED_MULT,{ 6}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA, 50, 50,   3*5*6}, // 6
-  {   600000000U, SI5351_FIXED_MULT,{ 4}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA, 50, 50,   3*5*4}, // 7
-  {            3, SI5351_FIXED_MULT,{ 4}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA, 50, 50,   3*5*4}, // 8
+  {   450000000U, SI5351_FIXED_MULT,{ 6}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA, 50, 50,   3*5*6}, // 6
+  {   600000000U, SI5351_FIXED_MULT,{ 4}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA, 50, 50,   3*5*4}, // 7
+  {            3, SI5351_FIXED_MULT,{ 4}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_4MA, 50, 50,   3*5*4}, // 8
 
   {  1200000000U, SI5351_FIXED_MULT,{ 4}, 5, 7, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA, 70, 70,   5*7*4}, // 9
   {            5, SI5351_FIXED_MULT,{ 4}, 5, 7, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA, 70, 70,   5*7*4}, //10
@@ -440,6 +440,18 @@ si5351_get_harmonic_lvl(uint32_t freq){
   }
   return i;
 }
+
+#ifdef GPIOA_HARMONIC
+#define SI_HI_MODE  palClearPad(GPIOA, GPIOA_HARMONIC)
+#define SI_LO_MODE  palSetPad(GPIOA, GPIOA_HARMONIC)
+static void updateFilterState(uint8_t harmonic_mode){
+  static uint8_t mode = -1;
+  if (mode == harmonic_mode) return;
+  mode = harmonic_mode;
+  if (mode) SI_HI_MODE;
+  else      SI_LO_MODE;
+}
+#endif
 
 /*
  * Maximum supported frequency = FREQ_HARMONICS * 9U
@@ -492,6 +504,10 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
 
   if (freq == current_freq)
     return 0;
+
+#ifdef GPIOA_HARMONIC
+  updateFilterState(freq >= config.harmonic_freq_threshold ? 1 : 0);
+#endif
 
   if (current_band != band) {
     si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN);

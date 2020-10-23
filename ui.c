@@ -1069,6 +1069,25 @@ static UI_FUNCTION_ADV_CALLBACK(menu_connection_acb)
 }
 #endif
 
+#ifdef GPIOA_BLUE
+#define BLUE_LO_MODE  palClearPad(GPIOA, GPIOA_BLUE)
+#define BLUE_HI_MODE  palSetPad(GPIOA, GPIOA_BLUE)
+#define VNA_MODE_BLUE_ON   0
+#define VNA_MODE_BLUE_OFF  1
+static UI_FUNCTION_CALLBACK(menu_bluetooth_cb)
+{
+  switch (data) {
+  case VNA_MODE_BLUE_ON:
+      BLUE_LO_MODE;
+      break;
+  case VNA_MODE_BLUE_OFF:
+      BLUE_HI_MODE;
+      break;
+  }
+  draw_menu();
+}
+#endif
+
 #ifdef __LCD_BRIGHTNESS__
 static UI_FUNCTION_CALLBACK(menu_brightness_cb)
 {
@@ -1485,6 +1504,8 @@ const menuitem_t menu_connection[] = {
   { MT_ADV_CALLBACK, VNA_MODE_USB,    "USB",    menu_connection_acb },
   { MT_ADV_CALLBACK, VNA_MODE_SERIAL, "SERIAL", menu_connection_acb },
   { MT_SUBMENU,  0, "SERIAL\nSPEED", menu_serial_speed },
+  { MT_CALLBACK,  VNA_MODE_BLUE_ON, "Blue ON",     menu_bluetooth_cb },
+  { MT_CALLBACK,  VNA_MODE_BLUE_OFF, "Blue OFF",    menu_bluetooth_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };

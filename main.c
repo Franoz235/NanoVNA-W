@@ -134,8 +134,8 @@ uint32_t frequencies[POINTS_COUNT];
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
-  "2019-2020 Copyright @DiSlord (based on @edy555 source)",
-  "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
+  "2020-2021 Copyright @csqwdy (based on @DiSlord source)",
+//  "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
   "Version: " VERSION " ["\
   "p:"define_to_STR(POINTS_COUNT)", "\
   "IF:"define_to_STR(FREQUENCY_IF_K)"k, "\
@@ -730,6 +730,7 @@ VNA_SHELL_FUNCTION(cmd_capture)
   (void)argc;
   (void)argv;
   int y;
+//#if (SPI_BUFFER_SIZE*LCD_PIXEL_SIZE) < (2*LCD_WIDTH*2)
 #if (SPI_BUFFER_SIZE*LCD_PIXEL_SIZE) < (3*LCD_WIDTH*2)
 #error "Low size of spi_buffer for cmd_capture"
 #endif

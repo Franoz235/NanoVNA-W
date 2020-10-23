@@ -23,11 +23,11 @@
 // Need enable HAL_USE_SPI in halconf.h
 #define __USE_DISPLAY_DMA__
 // LCD or hardware allow change brightness, add menu item for this
-//#define __LCD_BRIGHTNESS__
+#define __LCD_BRIGHTNESS__
 // Use DAC (in H4 used for brightness used DAC, so need enable __LCD_BRIGHTNESS__ for it)
 //#define __VNA_ENABLE_DAC__
 // Allow enter to DFU from menu or command
-#define __DFU_SOFTWARE_MODE__
+//#define __DFU_SOFTWARE_MODE__
 // Add RTC clock support
 #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
@@ -52,20 +52,20 @@
 
 // Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
 //#define AUDIO_ADC_FREQ_K        768
-//#define AUDIO_ADC_FREQ_K        384
-#define AUDIO_ADC_FREQ_K        192
+#define AUDIO_ADC_FREQ_K        384
+//#define AUDIO_ADC_FREQ_K        192
 //#define AUDIO_ADC_FREQ_K        96
 //#define AUDIO_ADC_FREQ_K        48
 
 // Define sample count for one step measure
-#define AUDIO_SAMPLES_COUNT   (48)
-//#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (48)
+#define AUDIO_SAMPLES_COUNT   (96)
 //#define AUDIO_SAMPLES_COUNT   (192)
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
-//#define USE_VARIABLE_OFFSET
+#define USE_VARIABLE_OFFSET
 
 #if AUDIO_ADC_FREQ_K == 768
 // For 768k ADC    (16k step for 48 samples)
@@ -122,7 +122,7 @@
 #define VNA_PI                   3.14159265358979323846
 
 // Maximum sweep point count (limit by flash and RAM size)
-#define POINTS_COUNT             101
+#define POINTS_COUNT             401
 
 // Optional sweep point (in UI menu)
 #if POINTS_COUNT >=401
@@ -524,9 +524,10 @@ typedef struct properties {
   uint8_t _domain_mode; /* 0bxxxxxffm : where ff: TD_FUNC m: DOMAIN_MODE */
   uint8_t _marker_smith_format;
   uint8_t _power;
+  uint8_t _reserved[39];
   uint32_t checksum;
 } properties_t;
-//on POINTS_COUNT = 101, sizeof(properties_t) == 4152 (need reduce size on 56 bytes to 4096 for more compact save slot size)
+//on POINTS_COUNT = 201, sizeof(properties_t) == 0x2000
 
 #define MARKER_INVALID       -1
 extern int8_t previous_marker;
@@ -590,9 +591,9 @@ extern  uint8_t redraw_request;
 // Set display buffers count for cell render (if use 2 and DMA, possible send data and prepare new in some time)
 #ifdef __USE_DISPLAY_DMA__
 // Cell size = sizeof(spi_buffer), but need wait while cell cata send to LCD
-#define DISPLAY_CELL_BUFFER_COUNT     1
+//#define DISPLAY_CELL_BUFFER_COUNT     1
 // Cell size = sizeof(spi_buffer)/2, while one cell send to LCD by DMA, CPU render to next cell
-//#define DISPLAY_CELL_BUFFER_COUNT     2
+#define DISPLAY_CELL_BUFFER_COUNT     2
 #else
 // Always one if no DMA mode
 #define DISPLAY_CELL_BUFFER_COUNT     1
@@ -769,11 +770,11 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 // Depend from config_t size, should be aligned by FLASH_PAGESIZE
 #define SAVE_CONFIG_SIZE        0x00000800
 // Depend from properties_t size, should be aligned by FLASH_PAGESIZE
-#define SAVE_PROP_CONFIG_SIZE   0x00001800
-// Save config_t and properties_t flash area (see flash7  : org = 0x08018000, len = 32k from *.ld settings)
+#define SAVE_PROP_CONFIG_SIZE   0x00004000
+// Save config_t and properties_t flash area (see flash7  : org = 0x0802B800, len = 82k from *.ld settings)
 // Properties save area follow after config
-// len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00008000  32k
-#define SAVE_CONFIG_ADDR        0x08018000
+// len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00010000  82k
+#define SAVE_CONFIG_ADDR        0x0802B800
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 #define SAVE_FULL_AREA_SIZE     (SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE)
 
@@ -856,8 +857,9 @@ extern uistat_t uistat;
 /*
  * adc.c
  */
-#define ADC_TOUCH_X  ADC_CHSELR_CHSEL6
-#define ADC_TOUCH_Y  ADC_CHSELR_CHSEL7
+#define rccEnableWWDG(lp) rccEnableAPB1(RCC_APB1ENR_WWDGEN, lp)
+#define ADC_TOUCH_X  ADC_CHANNEL_IN3
+#define ADC_TOUCH_Y  ADC_CHANNEL_IN4
 
 void adc_init(void);
 uint16_t adc_single_read(uint32_t chsel);
