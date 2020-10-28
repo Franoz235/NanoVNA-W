@@ -28,7 +28,8 @@
 
 uistat_t uistat = {
 // digit: 6,
- current_trace: 0,
+ _current_trace: 0,
+ _previous_marker: MARKER_INVALID,
  lever_mode: LM_MARKER,
  marker_delta: FALSE,
  marker_tracking : FALSE,
@@ -60,8 +61,6 @@ static systime_t last_button_down_ticks;
 static systime_t last_button_repeat_ticks;
 
 volatile uint8_t operation_requested = OP_NONE;
-
-int8_t previous_marker = -1;
 
 #ifdef __USE_SD_CARD__
 #if SPI_BUFFER_SIZE < 2048
@@ -530,14 +529,14 @@ show_version(void)
 #ifdef __USE_RTC__
     uint32_t tr = rtc_get_tr_bin(); // TR read first
     uint32_t dr = rtc_get_dr_bin(); // DR read second
-    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d"  " (%s)",
+    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d" " (LS%c)",
       RTC_DR_YEAR(dr),
       RTC_DR_MONTH(dr),
       RTC_DR_DAY(dr),
       RTC_TR_HOUR(dr),
       RTC_TR_MIN(dr),
       RTC_TR_SEC(dr),
-      (RCC->BDCR & STM32_RTCSEL_MASK) == STM32_RTCSEL_LSE ? "LSE" : "LSI");
+      (RCC->BDCR & STM32_RTCSEL_MASK) == STM32_RTCSEL_LSE ? 'E' : 'I');
     ili9341_drawstring(buffer, x, y);
 #endif
 #if 1
@@ -612,27 +611,27 @@ static UI_FUNCTION_CALLBACK(menu_caldone_cb)
   menu_push_submenu(menu_save);
 }
 
-#define MENU_CAL2_RESET    0
-#define MENU_CAL2_APPLY    1
-static UI_FUNCTION_ADV_CALLBACK(menu_cal2_acb)
+static UI_FUNCTION_CALLBACK(menu_cal_reset_cb)
 {
-  if (b){
-    if (data == MENU_CAL2_APPLY) b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
-    return;
-  }
-  switch (data) {
-  case MENU_CAL2_RESET: // RESET
-    cal_status = 0;
-    set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
-    break;
-  case MENU_CAL2_APPLY: // CORRECTION
-    // toggle applying correction
-    cal_status ^= CALSTAT_APPLY;
-    break;
-  }
+  (void)data;
+  // RESET
+  cal_status = 0;
+  set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
   draw_menu();
   draw_cal_status();
-  //menu_move_back();
+}
+
+static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb)
+{
+  (void)data;
+  if (b){
+    b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  // toggle applying correction
+  cal_status ^= CALSTAT_APPLY;
+  draw_menu();
+  draw_cal_status();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
@@ -643,7 +642,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
   }
   load_properties(data);
 //  menu_move_back(true);
-  update_grid();
   draw_cal_status();
 }
 
@@ -699,12 +697,12 @@ static void
 choose_active_trace(void)
 {
   int i;
-  if (trace[uistat.current_trace].enabled)
+  if (trace[current_trace].enabled)
     // do nothing
     return;
   for (i = 0; i < TRACES_MAX; i++)
     if (trace[i].enabled) {
-      uistat.current_trace = i;
+      current_trace = i;
       return;
     }
 }
@@ -715,7 +713,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
     if (trace[data].enabled){
       b->bg = LCD_TRACE_1_COLOR + data;
       if (data == selection) b->bg = LCD_MENU_ACTIVE_COLOR;
-      if (uistat.current_trace == data)
+      if (current_trace == data)
         b->icon = BUTTON_ICON_CHECK;
     }
     b->p1.u = data;
@@ -723,17 +721,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
   }
 
   if (trace[data].enabled) {
-    if (data == uistat.current_trace) {
+    if (data == current_trace) {
       // disable if active trace is selected
       trace[data].enabled = FALSE;
       choose_active_trace();
     } else {
       // make active selected trace
-      uistat.current_trace = data;
+      current_trace = data;
     }
   } else {
     trace[data].enabled = TRUE;
-    uistat.current_trace = data;
+    current_trace = data;
   }
   request_to_redraw_grid();
   draw_menu();
@@ -741,12 +739,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
 
 static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 {
+  if (current_trace == TRACE_INVALID) return;
   if (b){
-    if (uistat.current_trace >=0 && trace[uistat.current_trace].type == data)
+    if (trace[current_trace].type == data)
       b->icon = BUTTON_ICON_CHECK;
     return;
   }
-  set_trace_type(uistat.current_trace, data);
+  set_trace_type(current_trace, data);
   request_to_redraw_grid();
   ui_mode_normal();
   //redraw_all();
@@ -754,12 +753,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
 {
+  if (current_trace == TRACE_INVALID) return;
   if (b){
-    if (uistat.current_trace >=0 && trace[uistat.current_trace].channel == data)
+    if (trace[current_trace].channel == data)
       b->icon = BUTTON_ICON_CHECK;
     return;
   }
-  set_trace_channel(uistat.current_trace, data);
+  set_trace_channel(current_trace, data);
   menu_move_back(true);
 }
 
@@ -832,7 +832,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
 
 static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
 {
-  if (data == KM_SCALE && trace[uistat.current_trace].type == TRC_DELAY) {
+  if (data == KM_SCALE && trace[current_trace].type == TRC_DELAY) {
     data = KM_SCALEDELAY;
   }
 #ifdef UI_USE_NUMERIC_INPUT
@@ -895,10 +895,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
         uint32_t freq2 = get_marker_frequency(previous_marker);
         if (freq2 == 0)
           return;
-        if (freq > freq2) {
-          freq2 = freq;
-          freq = get_marker_frequency(previous_marker);
-        }
+        if (freq > freq2) {uint32_t t = freq2; freq2 = freq; freq = t;}
         set_sweep_frequency(ST_START, freq);
         set_sweep_frequency(ST_STOP, freq2);
       }
@@ -906,9 +903,9 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     break;
   case UI_MARKER_EDELAY: /* MARKERS->EDELAY */
     { 
-      if (uistat.current_trace == -1)
+      if (current_trace == TRACE_INVALID)
         break;
-      float (*array)[2] = measured[trace[uistat.current_trace].channel];
+      float (*array)[2] = measured[trace[current_trace].channel];
       float v = groupdelay_from_array(markers[active_marker].index, array);
       set_electrical_delay(electrical_delay + (v / 1e-12));
     }
@@ -936,16 +933,17 @@ static UI_FUNCTION_CALLBACK(menu_marker_search_cb)
     i = marker_search();
     break;
   case MENU_MARKER_S_LEFT: /* search Left */
-    i = marker_search_left(markers[active_marker].index);
+    i = marker_search_dir(markers[active_marker].index, MK_SEARCH_LEFT);
     break;
   case MENU_MARKER_S_RIGHT: /* search right */
-    i = marker_search_right(markers[active_marker].index);
+    i = marker_search_dir(markers[active_marker].index, MK_SEARCH_RIGHT);
     break;
   }
-  if (i != -1)
-    markers[active_marker].index = i;
+  if (i >= 0){
+    set_marker_index(active_marker, i);
+    redraw_marker(active_marker);
+  }
   uistat.marker_tracking = false;
-  redraw_marker(active_marker);
 #ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
 #endif
@@ -1268,11 +1266,11 @@ const menuitem_t menu_power[] = {
 };
 
 const menuitem_t menu_cal[] = {
-  { MT_SUBMENU,                   0, "CALIBRATE", menu_calop },
-  { MT_SUBMENU,                   0, "POWER",     menu_power },
-  { MT_SUBMENU,                   0, "SAVE",      menu_save },
-  { MT_ADV_CALLBACK, MENU_CAL2_RESET, "RESET",    menu_cal2_acb },
-  { MT_ADV_CALLBACK, MENU_CAL2_APPLY, "APPLY",    menu_cal2_acb },
+  { MT_SUBMENU,      0, "CALIBRATE", menu_calop },
+  { MT_SUBMENU,      0, "POWER",     menu_power },
+  { MT_SUBMENU,      0, "SAVE",      menu_save },
+  { MT_CALLBACK,     0, "RESET",     menu_cal_reset_cb },
+  { MT_ADV_CALLBACK, 0, "APPLY",     menu_cal_apply_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1517,7 +1515,7 @@ const menuitem_t menu_config[] = {
   { MT_CALLBACK,                      0, "SAVE",          menu_config_save_cb },
   { MT_SUBMENU,                       0, "SWEEP\nPOINTS", menu_sweep_points },
 #ifdef __USE_SERIAL_CONSOLE__
-  { MT_SUBMENU,  0, "CONNECTION", menu_connection},
+  { MT_SUBMENU,                       0, "CONNECTION",    menu_connection },
 #endif
   { MT_CALLBACK,    MENU_CONFIG_VERSION, "VERSION",       menu_config_cb },
 #ifdef __LCD_BRIGHTNESS__
@@ -1848,65 +1846,6 @@ menu_is_multiline(const char *label)
   return n;
 }
 
-#if 0
-// Obsolete, now use ADV_CALLBACK for change settings
-static void
-menu_item_modify_attribute(const menuitem_t *menu, int item, button_t *b)
-{
-  bool swap = false;
-  if (menu == menu_trace && item < TRACES_MAX) {
-    if (trace[item].enabled){
-      b->bg = config.trace_color[item];
-      if (item == selection) b->fg = ~config.trace_color[item];
-      swap = true;
-    }
-  } else if (menu == menu_marker_sel) {
-    if ((item  < 4 && markers[item].enabled) ||
-        (item == 5 && uistat.marker_delta))
-      swap = true;
-    else if (item == 5 && uistat.marker_delta)
-      swap = true;
-  } else if (menu == menu_marker_search) {
-    if (item == 4 && uistat.marker_tracking)
-      swap = true;
-  } else if (menu == menu_marker_smith) {
-    if (marker_smith_format == item)
-      swap = true;
-  } else if (menu == menu_calop) {
-    if ((item == 0 && (cal_status & CALSTAT_OPEN))
-        || (item == 1 && (cal_status & CALSTAT_SHORT))
-        || (item == 2 && (cal_status & CALSTAT_LOAD))
-        || (item == 3 && (cal_status & CALSTAT_ISOLN))
-        || (item == 4 && (cal_status & CALSTAT_THRU)))
-      swap = true;
-  } else if (menu == menu_stimulus) {
-    if (item == 5 /* PAUSE */ && !(sweep_mode&SWEEP_ENABLE))
-      swap = true;
-  } else if (menu == menu_cal) {
-    if (item == 3 /* CORRECTION */ && (cal_status & CALSTAT_APPLY))
-      swap = true;
-  } else if (menu == menu_bandwidth) {
-    if (menu_bandwidth[item].data == config.bandwidth)
-      swap = true;
-  } else if (menu == menu_sweep_points) {
-    if (menu_sweep_points[item].data == sweep_points)
-      swap = true;
-  } else if (menu == menu_transform) {
-    if ((item == 0 && (domain_mode & DOMAIN_MODE) == DOMAIN_TIME)
-       || (item == 1 && (domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_IMPULSE)
-       || (item == 2 && (domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_STEP)
-       || (item == 3 && (domain_mode & TD_FUNC) == TD_FUNC_BANDPASS)
-       ) swap = true;
-  } else if (menu == menu_transform_window) {
-      if ((item == 0 && (domain_mode & TD_WINDOW) == TD_WINDOW_MINIMUM)
-       || (item == 1 && (domain_mode & TD_WINDOW) == TD_WINDOW_NORMAL)
-       || (item == 2 && (domain_mode & TD_WINDOW) == TD_WINDOW_MAXIMUM)
-       ) swap = true;
-  }
-  if (swap) b->icon = BUTTON_ICON_CHECK;
-}
-#endif
-
 #define ICON_WIDTH        16
 #define ICON_HEIGHT       11
 static const uint8_t check_box[] = {
@@ -2093,10 +2032,10 @@ fetch_numeric_target(void)
     uistat.value = get_sweep_frequency(ST_CW);
     break;
   case KM_SCALE:
-    uistat.value = get_trace_scale(uistat.current_trace) * 1000;
+    uistat.value = get_trace_scale(current_trace) * 1000;
     break;
   case KM_REFPOS:
-    uistat.value = get_trace_refpos(uistat.current_trace) * 1000;
+    uistat.value = get_trace_refpos(current_trace) * 1000;
     break;
   case KM_EDELAY:
     uistat.value = get_electrical_delay();
@@ -2105,7 +2044,7 @@ fetch_numeric_target(void)
     uistat.value = velocity_factor * 100;
     break;
   case KM_SCALEDELAY:
-    uistat.value = get_trace_scale(uistat.current_trace) * 1e12;
+    uistat.value = get_trace_scale(current_trace) * 1e12;
     break;
   }
 
@@ -2139,10 +2078,10 @@ set_numeric_value(void)
     set_sweep_frequency(ST_CW, uistat.value);
     break;
   case KM_SCALE:
-    set_trace_scale(uistat.current_trace, uistat.value / 1000.0);
+    set_trace_scale(current_trace, uistat.value / 1000.0);
     break;
   case KM_REFPOS:
-    set_trace_refpos(uistat.current_trace, uistat.value / 1000.0);
+    set_trace_refpos(current_trace, uistat.value / 1000.0);
     break;
   case KM_EDELAY:
     set_electrical_delay(uistat.value);
@@ -2348,8 +2287,7 @@ lever_move_marker(int status)
         if (idx  > sweep_points-1)
           idx = sweep_points-1 ;
       }
-      markers[active_marker].index = idx;
-      markers[active_marker].frequency = frequencies[idx];
+      set_marker_index(active_marker, idx);
       redraw_marker(active_marker);
       step++;
     }
@@ -2458,7 +2396,7 @@ ui_process_normal(void)
         if (FREQ_IS_STARTSTOP())
           lever_move(status, ST_STOP);
         else
-        lever_zoom_span(status);
+          lever_zoom_span(status);
         break;
       case LM_EDELAY:
         lever_edelay(status);
@@ -2527,10 +2465,10 @@ keypad_click(int key)
       set_sweep_frequency(ST_CW, value);
       break;
     case KM_SCALE:
-      set_trace_scale(uistat.current_trace, value);
+      set_trace_scale(current_trace, value);
       break;
     case KM_REFPOS:
-      set_trace_refpos(uistat.current_trace, value);
+      set_trace_refpos(current_trace, value);
       break;
     case KM_EDELAY:
       set_electrical_delay(value); // pico seconds
@@ -2539,7 +2477,7 @@ keypad_click(int key)
       velocity_factor = value / 100.0;
       break;
     case KM_SCALEDELAY:
-      set_trace_scale(uistat.current_trace, value * 1e-12); // pico second
+      set_trace_scale(current_trace, value * 1e-12); // pico second
       break;
     }
     return KP_DONE;
@@ -2668,8 +2606,7 @@ drag_marker(int t, int8_t m)
     touch_y -= OFFSETY;
     index = search_nearest_index(touch_x, touch_y, t);
     if (index >= 0) {
-      markers[m].index = index;
-      markers[m].frequency = frequencies[index];
+      set_marker_index(m, index);
       redraw_marker(m);
     }
   } while (touch_check()!= EVT_TOUCH_RELEASED);
@@ -2706,9 +2643,12 @@ touch_pickup_marker(int touch_x, int touch_y)
     previous_marker = active_marker;
     active_marker = i;
   }
+  // Disable tracking
+  uistat.marker_tracking = false;
+  // Leveler mode = marker move
   select_lever_mode(LM_MARKER);
   // select trace
-  uistat.current_trace = mt;
+  current_trace = mt;
   // drag marker until release
   drag_marker(mt, i);
   return TRUE;
