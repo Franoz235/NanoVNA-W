@@ -93,12 +93,13 @@ There are seveal numbers of great companion PC tools from third-party.
 Hardware design material is disclosed to prevent bad quality clone. Please let me know if you would have your own unit.
 
 ## Credit
-* [@DiSlord](https://github.com/DiSlord/)
+* [@csqwdy](https://github.com/csqwdy/)
 
 ## Based on code from:
-* [@edy555](https://github.com/edy555)
+* [@DiSlord](https://github.com/DiSlord/)
 
 ### Contributors
+* [@edy555](https://github.com/edy555)
 * [@OneOfEleven](https://github.com/OneOfEleven)
 * [@hugen79](https://github.com/hugen79)
 * [@cho45](https://github.com/cho45)
