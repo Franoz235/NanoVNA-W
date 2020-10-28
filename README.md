@@ -36,19 +36,6 @@ Download arm cross tools from [here](https://developer.arm.com/tools-and-softwar
     $ PATH=/usr/local/gcc-arm-none-eabi-8-2018-q4-major/bin:$PATH
     $ sudo apt install -y dfu-util
 
-## Fetch source code
-
-Fetch source and submodule.
-
-    $ git clone https://github.com/DiSlord/NanoVNA-D.git
-    $ cd NanoVNA
-    $ git submodule update --init --recursive
-
-## Build
-
-Just make in the directory.
-
-    $ make
 
 ## Flash firmware
 
