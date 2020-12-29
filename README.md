@@ -36,6 +36,19 @@ Download arm cross tools from [here](https://developer.arm.com/tools-and-softwar
     $ PATH=/usr/local/gcc-arm-none-eabi-8-2018-q4-major/bin:$PATH
     $ sudo apt install -y dfu-util
 
+## Fetch source code
+
+Fetch source and submodule.
+
+    $ git clone https://github.com/DiSlord/NanoVNA-D.git
+    $ cd NanoVNA
+    $ git submodule update --init --recursive
+
+## Build
+
+Just make in the directory.
+
+    $ make
 
 ## Flash firmware
 
@@ -80,13 +93,12 @@ There are seveal numbers of great companion PC tools from third-party.
 Hardware design material is disclosed to prevent bad quality clone. Please let me know if you would have your own unit.
 
 ## Credit
-* [@csqwdy](https://github.com/csqwdy/)
-
-## Based on code from:
 * [@DiSlord](https://github.com/DiSlord/)
 
-### Contributors
+## Based on code from:
 * [@edy555](https://github.com/edy555)
+
+### Contributors
 * [@OneOfEleven](https://github.com/OneOfEleven)
 * [@hugen79](https://github.com/hugen79)
 * [@cho45](https://github.com/cho45)

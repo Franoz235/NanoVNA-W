@@ -459,8 +459,6 @@ touch_cal_exec(void)
   config.touch_cal[1] = y1;
   config.touch_cal[2] = (x2 - x1) * 16 / LCD_WIDTH;
   config.touch_cal[3] = (y2 - y1) * 16 / LCD_HEIGHT;
-
-  //redraw_all();
 }
 
 void
@@ -487,7 +485,6 @@ touch_draw_test(void)
   }while (!(btn_check() & EVT_BUTTON_SINGLE_CLICK));
 }
 
-
 static void
 touch_position(int *x, int *y)
 {
@@ -508,8 +505,10 @@ show_version(void)
 
   ili9341_clear_screen();
   uint16_t shift = 0b000100000;
-  ili9341_drawstring_size(BOARD_NAME, x , y, 3);
-  y+=FONT_GET_HEIGHT*3+3-5;
+  //ili9341_drawstring_size(BOARD_NAME, x , y, 3);
+  ili9341_drawstring_size(BOARD_NAME, LCD_WIDTH/2-72 , y + 3, 3);
+
+  y+=FONT_GET_HEIGHT*4+3-5;
   while (info_about[i]) {
     do {shift>>=1; y+=5;} while (shift&1);
     ili9341_drawstring(info_about[i++], x, y+=FONT_STR_HEIGHT+3-5);
@@ -638,10 +637,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
 {
   if (b){
     b->p1.i = data;
+    if (lastsaveid == data) b->icon = BUTTON_ICON_CHECK;
     return;
   }
   load_properties(data);
-//  menu_move_back(true);
+  draw_menu();
   draw_cal_status();
 }
 
@@ -746,9 +746,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
     return;
   }
   set_trace_type(current_trace, data);
-  request_to_redraw_grid();
   ui_mode_normal();
-  //redraw_all();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
@@ -1094,8 +1092,8 @@ static UI_FUNCTION_CALLBACK(menu_brightness_cb)
   ili9341_set_foreground(LCD_MENU_TEXT_COLOR);
   ili9341_set_background(LCD_MENU_COLOR);
   ili9341_fill(LCD_WIDTH/2-80, LCD_HEIGHT/2-20, 160, 40);
-  ili9341_drawstring("BRIGHTNESS", LCD_WIDTH/2-35, LCD_HEIGHT/2-13);
-  ili9341_drawstring(S_LARROW" USE LEVELER BUTTON "S_RARROW, LCD_WIDTH/2-72, LCD_HEIGHT/2+2);
+  ili9341_drawstring("BRIGHTNESS", LCD_WIDTH/2-22, LCD_HEIGHT/2-13);
+  ili9341_drawstring(S_LARROW" USE LEVELER BUTTON "S_RARROW, LCD_WIDTH/2-52, LCD_HEIGHT/2+2);
   while (TRUE) {
     int status = btn_check();
     if (status & (EVT_UP|EVT_DOWN)) {
@@ -1502,8 +1500,8 @@ const menuitem_t menu_connection[] = {
   { MT_ADV_CALLBACK, VNA_MODE_USB,    "USB",    menu_connection_acb },
   { MT_ADV_CALLBACK, VNA_MODE_SERIAL, "SERIAL", menu_connection_acb },
   { MT_SUBMENU,  0, "SERIAL\nSPEED", menu_serial_speed },
-  { MT_CALLBACK,  VNA_MODE_BLUE_ON, "Blue ON",     menu_bluetooth_cb },
-  { MT_CALLBACK,  VNA_MODE_BLUE_OFF, "Blue OFF",    menu_bluetooth_cb },
+  { MT_CALLBACK,  VNA_MODE_BLUE_ON, "BlUE ON",     menu_bluetooth_cb },
+  { MT_CALLBACK,  VNA_MODE_BLUE_OFF, "BlUE OFF",    menu_bluetooth_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -2364,7 +2362,7 @@ lever_move(int status, int mode)
 static void
 lever_edelay(int status)
 {
-  float value = get_electrical_delay();
+  float value = electrical_delay;
   float ratio = STEPRATIO;
   if (value < 0)
     ratio = -ratio;
@@ -2743,11 +2741,7 @@ touch_lever_mode_select(int touch_x, int touch_y)
     return TRUE;
   }
   if (touch_y < 25) {
-    if (touch_x < FREQUENCIES_XPOS2 && get_electrical_delay() != 0.0) {
-      select_lever_mode(LM_EDELAY);
-    } else {
-      select_lever_mode(LM_MARKER);
-    }
+    select_lever_mode((touch_x < FREQUENCIES_XPOS2 && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER);
     return TRUE;
   }
   return FALSE;
